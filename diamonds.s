@@ -1,25 +1,6 @@
 .include "nesdefs.inc"
 
-.segment "HEADER"
-  .byte "NES", $1a
-  .byte $01
-  .byte $01
-  .byte %00000001
-  .byte %00001000
-  .byte %00000000
-  .byte $00
-  .byte $00
-  .byte $00,$00,$00,$00,$00
-
-.segment "ZEROPAGE"
-  mario_curr_frame: .res 2
-  delay: .res 1
-
-.segment "BSS"
-  nmi_counter: .res 1
-  buttonsp1: .res 1
-  buttonsp2: .res 1
-  curr_frame: .res 1
+.include "ram.s"
 
 .segment "CODE"
 
@@ -64,8 +45,9 @@ ClearMemory:
   sta $0500, x
   sta $0600, x
   sta $0700, x
-  lda #$ff
+  lda #$fe
   sta $0200, x
+  lda #0
   inx
   bne ClearMemory
 
@@ -82,13 +64,14 @@ ClearMemory:
   dex
   bne :-
 
-	ldx #64
-	lda #$55			; Select palette 1 (2nd palette) throughout.
+  ldx #64
+  lda #$55			; Select palette 1 (2nd palette) throughout.
 :	sta PPU_DATA
-	dex
-	bne :-
+  dex
+  bne :-
 
   jsr LoadSprites
+  jsr LoadBackground
 
   ; Enable Interuppts
   cli
@@ -101,19 +84,19 @@ ClearMemory:
   wait_for_nmi
 
   lda #0
-	sta PPU_OAM_ADDR	; Specify the target starts at $00 in the PPU's OAM RAM.
-	lda #>OAM_RAM		; Get upper byte (i.e. page) of source RAM for DMA operation.
-	sta OAM_DMA			; Trigger the DMA.
+  sta PPU_OAM_ADDR	; Specify the target starts at $00 in the PPU's OAM RAM.
+  lda #>OAM_RAM		; Get upper byte (i.e. page) of source RAM for DMA operation.
+  sta OAM_DMA			; Trigger the DMA.
 
-	lda #0
-	sta PPU_SCROLL		; Write X position first.
-	sta PPU_SCROLL		; Then write Y position.
+  lda #0
+  sta PPU_SCROLL		; Write X position first.
+  sta PPU_SCROLL		; Then write Y position.
 
-  lda #VBLANK_NMI|SPR_0|VRAM_DOWN
+  lda #VBLANK_NMI|SPR_0|BG_0|VRAM_DOWN
   sta PPU_CTRL
 
   ; Turn screen on - Activate Sprites
-  lda #SPR_ON
+  lda #SPR_ON|BG_ON
   sta PPU_MASK
 
   wait_for_nmi
@@ -160,6 +143,30 @@ LoadSpritesLoop:
   iny
   cpy #16
   bne LoadSpritesLoop
+  rts
+.endproc
+
+.proc LoadBackground
+  lda PPU_STATUS
+  ppu_addr $2000
+
+  lda #<tilemap
+  sta ptr
+  lda #>tilemap
+  sta ptr + 1
+  ldx #4
+  ldy #0
+@loop:
+  lda (ptr), y
+  sta PPU_DATA
+  iny
+  bne @loop
+  dex
+  beq @done
+  inc ptr + 1
+  jmp @loop
+
+@done:
   rts
 .endproc
 
@@ -245,9 +252,9 @@ LoadSpritesLoop:
 
   ; DMA Copy Sprite OAM to PPU
   lda #0
-	sta PPU_OAM_ADDR	; Specify the target starts at $00 in the PPU's OAM RAM.
-	lda #>OAM_RAM		; Get upper byte (i.e. page) of source RAM for DMA operation.
-	sta OAM_DMA			; Trigger the DMA.
+  sta PPU_OAM_ADDR	; Specify the target starts at $00 in the PPU's OAM RAM.
+  lda #>OAM_RAM		; Get upper byte (i.e. page) of source RAM for DMA operation.
+  sta OAM_DMA			; Trigger the DMA.
 
   ; Check Input
   jsr pollPlayer1
@@ -360,18 +367,19 @@ inputDone:
   rti
 .endproc
 
-.segment "RODATA"
+.segment "PALETTE"
 palette:
-  .byte $0F             ; Universal Background Color
-  .byte $30,$32,$33     ; Background Palette 0
-  .byte $0F,$35,$36,$37 ; Background Palette 1
-  .byte $0F,$39,$3A,$3B ; Background Palette 2
-  .byte $0F,$3D,$3E,$0F ; Background Palette 3
-  .byte $22,$16,$27,$18 ; Sprite Palette 0
-  .byte $0F,$02,$38,$3C ; Sprite Palette 1
-  .byte $0F,$1C,$15,$14 ; Sprite Palette 2
-  .byte $0F,$02,$38,$3C ; Sprite Palette 3
+.byte $00             ; Universal Background Color
+.byte $30,$27,$00     ; Background Palette 0
+.byte $0f,$30,$21,$01 ; Background Palette 1
+.byte $0f,$26,$16,$06 ; Background Palette 2
+.byte $0f,$29,$19,$09 ; Background Palette 3
+.byte $22,$16,$27,$18 ; Sprite Palette 0
+.byte $0F,$02,$38,$3C ; Sprite Palette 1
+.byte $0F,$1C,$15,$14 ; Sprite Palette 2
+.byte $0F,$02,$38,$3C ; Sprite Palette 3
 
+.segment "SPRITE"
 sprites:
        ;vert tile attr horiz
 mario1:
@@ -392,6 +400,11 @@ mario3:
   .byte $88, $3B, $00, $80   ;sprite 2
   .byte $88, $3C, $00, $88   ;sprite 3
 
+.segment "ROOM"
+tilemap:
+  .incbin "nametable.map"
+
+.segment "DATA"
 mario_frames:
   .addr mario3
   .addr mario1
@@ -402,7 +415,7 @@ mario_frames:
     .addr ResetVector
     .addr 0
 
-.segment "CHARS"
-  .incbin "mario.chr"   ;includes 8KB graphics file from SMB1
+.segment "FIXED"
 
-.segment "STARTUP"
+.segment "CHR"
+  .incbin "diamonds.chr"   ;includes 8KB graphics file from SMB1
