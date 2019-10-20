@@ -402,7 +402,7 @@ mario3:
 
 .segment "ROOM"
 tilemap:
-  .incbin "nametable.map"
+  .incbin "assets/nametable.bin"
 
 .segment "DATA"
 mario_frames:
@@ -418,4 +418,4 @@ mario_frames:
 .segment "FIXED"
 
 .segment "CHR"
-  .incbin "diamonds.chr"   ;includes 8KB graphics file from SMB1
+  .incbin "assets/diamonds.chr"   ;includes 8KB graphics file from SMB1
