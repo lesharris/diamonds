@@ -8,4 +8,4 @@
 .byte %00000000
 .byte $00
 .byte $00
-.byte $00,$00,$00,$00,$00
+.byte $00,$00,$00,$00,%00000001 ; Standard controllers

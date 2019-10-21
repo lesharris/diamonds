@@ -110,6 +110,8 @@ ClearMemory:
   ; Enable sprites & background
   lda #SPR_ON|BG_ON
   sta PPU_MASK
+
+  jmp Main
 .endproc
 
 .proc Main
@@ -120,7 +122,7 @@ ClearMemory:
   ; A B Select Start Up Down Left Right
 
   lda buttonsp1
-  and #%00000010
+  and #bLEFT|bB
   beq checkRight
 
   lda ball_x
@@ -130,7 +132,7 @@ ClearMemory:
 
 checkRight:
   lda buttonsp1
-  and #%00000001
+  and #bRIGHT|bA
   beq @inputDone
 
   lda ball_x
@@ -153,10 +155,12 @@ checkRight:
 
 wall_collision:
   ; Check Y
+  cmp #$08
   bne :+
+  lda #0
   sta ball_dir
   jmp checkX
-: cmp #$ea
+: cmp #$e2
   bne checkX
   lda #1
   sta ball_dir

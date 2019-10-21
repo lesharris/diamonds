@@ -77,6 +77,19 @@ BG_ON			= %1000		; Show background.
 SPR_OFF			= %00000	; Hide sprites.
 SPR_ON			= %10000	; Show sprites.
 
+; Button Flags
+  ; 7 6 5      4     3  2    1    0
+  ; A B Select Start Up Down Left Right
+
+bRIGHT		= %00000001
+bLEFT		= %00000010
+bDOWN		= %00000100
+bUP			= %00001000
+bSTART      = %00010000
+bSELECT     = %00100000
+bB          = %01000000
+bA          = %10000000
+
 ; MMC3 Control addresses
 
 MMC3_BANK_SELECT	= $8000
