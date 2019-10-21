@@ -18,9 +18,18 @@
 
 .segment "ZEROPAGE"
 
-RESZP mario_curr_frame,   2
-RESZP delay,              1
-RESZP ptr,                2
+RESZP data_ptr,			 	2
+RESZP nmi_counter,          1
+
+RESZP buttonsp1,            1
+RESZP buttonsp2,            1
+
+RESZP ball_y,				1
+RESZP ball_tile,			1
+RESZP ball_attr,			1
+RESZP ball_x,				1
+RESZP ball_yv,				1
+RESZP ball_dir,				1
 
 .segment "STACK"
 RES stack,                256
@@ -29,7 +38,4 @@ RES stack,                256
 RES oam,                  256
 
 .segment "RAM"
-RES nmi_counter,          1
-RES buttonsp1,            1
-RES buttonsp2,            1
-RES curr_frame,           1
+

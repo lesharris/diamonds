@@ -1,23 +1,22 @@
 .include "nesdefs.inc"
+.include "utils.inc"
 
 .include "ram.s"
 
 .segment "CODE"
 
 .proc ResetVector
-  ; Disable Interrupts
+  ; Init
   sei
-  ; Clear Decimal
   cld
 
-  ; Init
   ldx #0
   stx PPU_CTRL
   stx PPU_MASK
   stx APU_DMC_CTRL
 
   ; Set Stack Pointer
-  dex
+  dex   ; 0 - 1 = $FF
   txs
 
   ; Clear Interrupts
@@ -46,7 +45,7 @@ ClearMemory:
   sta $0600, x
   sta $0700, x
   lda #$fe
-  sta $0200, x
+  sta oam, x
   lda #0
   inx
   bne ClearMemory
@@ -71,10 +70,23 @@ ClearMemory:
   bne :-
 
   jsr LoadSprites
-  jsr LoadBackground
 
-  ; Enable Interuppts
-  cli
+  lda #$80
+  sta ball_x
+  sta ball_y
+  lda #$64
+  sta ball_tile
+  lda #0
+  sta ball_attr
+  sta ball_dir
+  lda #2
+  sta ball_yv
+
+  lda #<tilemap
+  sta data_ptr
+  lda #>tilemap
+  sta data_ptr + 1
+  jsr LoadBackground
 
   ; Enable VBlank NMI
   lda #VBLANK_NMI
@@ -85,8 +97,8 @@ ClearMemory:
 
   lda #0
   sta PPU_OAM_ADDR	; Specify the target starts at $00 in the PPU's OAM RAM.
-  lda #>OAM_RAM		; Get upper byte (i.e. page) of source RAM for DMA operation.
-  sta OAM_DMA			; Trigger the DMA.
+  lda #>OAM_RAM		  ; Get upper byte (i.e. page) of source RAM for DMA operation.
+  sta OAM_DMA			  ; Trigger the DMA.
 
   lda #0
   sta PPU_SCROLL		; Write X position first.
@@ -95,30 +107,89 @@ ClearMemory:
   lda #VBLANK_NMI|SPR_0|BG_0|VRAM_DOWN
   sta PPU_CTRL
 
-  ; Turn screen on - Activate Sprites
+  ; Enable sprites & background
   lda #SPR_ON|BG_ON
   sta PPU_MASK
+.endproc
+
+.proc Main
+; Check Input
+  jsr pollPlayer1
+
+  ; 7 6 5      4     3  2    1    0
+  ; A B Select Start Up Down Left Right
+
+  lda buttonsp1
+  and #%00000010
+  beq checkRight
+
+  lda ball_x
+  sec
+  sbc #2
+  sta ball_x
+
+checkRight:
+  lda buttonsp1
+  and #%00000001
+  beq @inputDone
+
+  lda ball_x
+  clc
+  adc #2
+  sta ball_x
+
+@inputDone:
+  lda ball_dir
+  bne :+
+  lda ball_y
+  clc
+  adc ball_yv
+  sta ball_y
+  jmp wall_collision
+: lda ball_y
+  sec
+  sbc ball_yv
+  sta ball_y
+
+wall_collision:
+  ; Check Y
+  bne :+
+  sta ball_dir
+  jmp checkX
+: cmp #$ea
+  bne checkX
+  lda #1
+  sta ball_dir
+
+checkX:
+  lda ball_x
+  cmp #$08
+  bne :+
+  lda #$10
+  sta ball_x
+  jmp update
+: cmp #$f8
+  bne update
+  lda #$f0
+  sta ball_x
+
+update:
+  jsr UpdateBall
 
   wait_for_nmi
+  jmp Main
+.endproc
 
-  loop:
-    inc delay
-    lda delay
-    cmp #10
-    bne @next
-    lda #0
-    sta delay
-
-    inc curr_frame
-    lda curr_frame
-    cmp #3
-    bne @next
-    lda #0
-    sta curr_frame
-
-@next:
-    wait_for_nmi
-    jmp loop
+.proc UpdateBall
+  lda ball_y
+  sta oam
+  lda ball_tile
+  sta oam + 1
+  lda ball_attr
+  sta oam + 2
+  lda ball_x
+  sta oam + 3
+  rts
 .endproc
 
 .proc LoadPalettes
@@ -138,69 +209,34 @@ LoadPalettesLoop:
 .proc LoadSprites
   ldy #0
 LoadSpritesLoop:
-  lda sprites, y
-  sta $0200, y
+  lda ball, y
+  sta oam, y
   iny
-  cpy #16
+  cpy #4
   bne LoadSpritesLoop
   rts
 .endproc
 
+; Loads Nametable + Attribute data (1024 bytes)
+; data_ptr must be set to the address of data to load.
+; Destroys a, x, y
 .proc LoadBackground
   lda PPU_STATUS
   ppu_addr $2000
 
-  lda #<tilemap
-  sta ptr
-  lda #>tilemap
-  sta ptr + 1
-  ldx #4
+  ldx #4            ; Loop 4 times 256 * 4 = 1024
   ldy #0
 @loop:
-  lda (ptr), y
+  lda (data_ptr), y
   sta PPU_DATA
   iny
   bne @loop
   dex
   beq @done
-  inc ptr + 1
+  inc data_ptr + 1
   jmp @loop
 
 @done:
-  rts
-.endproc
-
-; A - Sprite Frame
-.proc UpdateSpriteFrame
-  asl
-  tax
-  lda mario_frames, x
-  sta mario_curr_frame
-  lda mario_frames + 1, x
-  sta mario_curr_frame + 1
-
-  ldy #1
-
-  lda (mario_curr_frame), y
-  sta $201
-  .repeat 4
-    iny
-  .endrep
-
-  lda (mario_curr_frame), y
-  sta $205
-  .repeat 4
-    iny
-  .endrep
-
-  lda (mario_curr_frame), y
-  sta $209
-  .repeat 4
-    iny
-  .endrep
-
-  lda (mario_curr_frame), y
-  sta $20D
   rts
 .endproc
 
@@ -241,14 +277,13 @@ LoadSpritesLoop:
 .endproc
 
 .proc VBlankVector
-  ; Disable Interuppts
+  php
+  SAVE_AXY
+
   sei
 
   ; Decrement Counter
   dec nmi_counter
-
-  lda curr_frame
-  jsr UpdateSpriteFrame
 
   ; DMA Copy Sprite OAM to PPU
   lda #0
@@ -256,159 +291,35 @@ LoadSpritesLoop:
   lda #>OAM_RAM		; Get upper byte (i.e. page) of source RAM for DMA operation.
   sta OAM_DMA			; Trigger the DMA.
 
-  ; Check Input
-  jsr pollPlayer1
+  RESTORE_AXY
+  plp
 
-  ; 7 6 5      4     3  2    1    0
-  ; A B Select Start Up Down Left Right
+  cli
 
-  lda buttonsp1
-  and #%00001000
-  beq checkDown
-
-  lda $200
-  sec
-  sbc #1
-  sta $200
-
-  lda $204
-  sec
-  sbc #1
-  sta $204
-
-  lda $208
-  sec
-  sbc #1
-  sta $208
-
-  lda $20C
-  sec
-  sbc #1
-  sta $20C
-
-checkDown:
-  lda buttonsp1
-  and #%00000100
-  beq checkLeft
-
-  lda $200
-  clc
-  adc #1
-  sta $200
-
-  lda $204
-  clc
-  adc #1
-  sta $204
-
-  lda $208
-  clc
-  adc #1
-  sta $208
-
-  lda $20C
-  clc
-  adc #1
-  sta $20C
-
-checkLeft:
-  lda buttonsp1
-  and #%00000010
-  beq checkRight
-
-  lda $203
-  sec
-  sbc #1
-  sta $203
-
-  lda $207
-  sec
-  sbc #1
-  sta $207
-
-  lda $20B
-  sec
-  sbc #1
-  sta $20B
-
-  lda $20F
-  sec
-  sbc #1
-  sta $20F
-
-checkRight:
-  lda buttonsp1
-  and #%00000001
-  beq inputDone
-
-  lda $203
-  clc
-  adc #1
-  sta $203
-
-  lda $207
-  clc
-  adc #1
-  sta $207
-
-  lda $20B
-  clc
-  adc #1
-  sta $20B
-
-  lda $20F
-  clc
-  adc #1
-  sta $20F
-
-inputDone:
-
-  cli     ; Enable Interupts
   rti
 .endproc
 
 .segment "PALETTE"
 palette:
-.byte $00             ; Universal Background Color
+.byte $0f             ; Universal Background Color
 .byte $30,$27,$00     ; Background Palette 0
 .byte $0f,$30,$21,$01 ; Background Palette 1
 .byte $0f,$26,$16,$06 ; Background Palette 2
 .byte $0f,$29,$19,$09 ; Background Palette 3
-.byte $22,$16,$27,$18 ; Sprite Palette 0
+
+.byte $0f,$00,$20,$10 ; Sprite Palette 0
 .byte $0F,$02,$38,$3C ; Sprite Palette 1
 .byte $0F,$1C,$15,$14 ; Sprite Palette 2
 .byte $0F,$02,$38,$3C ; Sprite Palette 3
 
 .segment "SPRITE"
-sprites:
-       ;vert tile attr horiz
-mario1:
-  .byte $80, $32, $00, $80   ;sprite 0
-  .byte $80, $33, $00, $88   ;sprite 1
-  .byte $88, $34, $00, $80   ;sprite 2
-  .byte $88, $35, $00, $88   ;sprite 3
-
-mario2:
-  .byte $80, $36, $00, $80   ;sprite 0
-  .byte $80, $37, $00, $88   ;sprite 1
-  .byte $88, $38, $00, $80   ;sprite 2
-  .byte $88, $39, $00, $88   ;sprite 3
-
-mario3:
-  .byte $80, $3A, $00, $80   ;sprite 0
-  .byte $80, $37, $00, $88   ;sprite 1
-  .byte $88, $3B, $00, $80   ;sprite 2
-  .byte $88, $3C, $00, $88   ;sprite 3
+       ;vert tile attr       horiz
+ball:
+  .byte $80, $64, %00000000, $80   ;sprite 0
 
 .segment "ROOM"
 tilemap:
   .incbin "assets/nametable.bin"
-
-.segment "DATA"
-mario_frames:
-  .addr mario3
-  .addr mario1
-  .addr mario2
 
 .segment "VECTORS"
     .addr VBlankVector
