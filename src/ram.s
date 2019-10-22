@@ -22,7 +22,6 @@ RESZP data_ptr,			 	2
 RESZP nmi_counter,          1
 
 RESZP buttonsp1,            1
-RESZP buttonsp2,            1
 
 RESZP ball_y,				1
 RESZP ball_tile,			1
