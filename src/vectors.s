@@ -73,14 +73,14 @@ ClearMemory:
 
   ppu_addr $2000
   lda #0
-  ldx #32*30/4	; Only need to repeat a quarter of the time, since the loop writes 4 times.
+  ldx #32*30/4           ; Only need to repeat a quarter of the time, since the loop writes 4 times.
 : Repeat 4, sta PPU_DATA
   dex
   bne :-
 
   ldx #64
-  lda #$55			; Select palette 1 (2nd palette) throughout.
-:	sta PPU_DATA
+  lda #$55               ; Select palette 1 (2nd palette) throughout.
+:  sta PPU_DATA
   dex
   bne :-
 
@@ -111,13 +111,13 @@ ClearMemory:
   wait_for_nmi
 
   lda #0
-  sta PPU_OAM_ADDR	; Specify the target starts at $00 in the PPU's OAM RAM.
-  lda #>OAM_RAM		  ; Get upper byte (i.e. page) of source RAM for DMA operation.
-  sta OAM_DMA			  ; Trigger the DMA.
+  sta PPU_OAM_ADDR  ; Specify the target starts at $00 in the PPU's OAM RAM.
+  lda #>OAM_RAM      ; Get upper byte (i.e. page) of source RAM for DMA operation.
+  sta OAM_DMA        ; Trigger the DMA.
 
   lda #0
-  sta PPU_SCROLL		; Write X position first.
-  sta PPU_SCROLL		; Then write Y position.
+  sta PPU_SCROLL    ; Write X position first.
+  sta PPU_SCROLL    ; Then write Y position.
 
   lda #VBLANK_NMI|SPR_0|BG_0|VRAM_DOWN
   sta PPU_CTRL
@@ -140,9 +140,9 @@ ClearMemory:
 
   ; DMA Copy Sprite OAM to PPU
   lda #0
-  sta PPU_OAM_ADDR	; Specify the target starts at $00 in the PPU's OAM RAM.
-  lda #>OAM_RAM		; Get upper byte (i.e. page) of source RAM for DMA operation.
-  sta OAM_DMA			; Trigger the DMA.
+  sta PPU_OAM_ADDR  ; Specify the target starts at $00 in the PPU's OAM RAM.
+  lda #>OAM_RAM    ; Get upper byte (i.e. page) of source RAM for DMA operation.
+  sta OAM_DMA      ; Trigger the DMA.
 
   RESTORE_AXY
   plp

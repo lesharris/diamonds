@@ -3,6 +3,7 @@
 .importzp buttonsp1
 
 .segment "CODE"
+
 .proc pollPlayer1
   ; latch controllers
   lda #1

@@ -7,6 +7,7 @@
 .import ball
 
 .segment "CODE"
+
 .proc LoadPalettes
   ppu_addr $3f00
 
@@ -39,7 +40,7 @@ LoadSpritesLoop:
   lda PPU_STATUS
   ppu_addr $2000
 
-  ldx #4            ; Loop 4 times 256 * 4 = 1024
+  ldx #4            ; Loop 4 times: 256 * 4 = 1024
   ldy #0
 @loop:
   lda (data_ptr), y
